@@ -71,10 +71,11 @@ PID-Depth-Control/
 │   └── main.cpp
 ├── lib/
 │   └── PID/
-│       ├── PID.cpp
-│       └── PID.h
-├── include/
-│   └── SerialLineReader.h
+│   |   ├── PID.cpp
+│   |   └── PID.h
+|   └── SerialLineRea/
+│       ├── SerialLineReader.cpp
+│       └── SerialLineReader.h
 ├── platformio.ini
 └── README.md
 ```
