@@ -2,8 +2,8 @@
 // Description: Sets depth of propeller based on a MS5837 pressure sensor
 // Board/Target: Lolin lite
 // Author: Gero Nootz 
-// Date: 07-30-2025
-// Version: 1.0.0
+// Date: 10-10-2025
+// Version: 1.1.0
 
 
 #include <Arduino.h>
@@ -22,7 +22,7 @@
 #define SCREEN_HEIGHT 64    // display height, in pixels
 #define DISPLAY_RESET -1    // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_ADDRESS 0x3C // See data sheet for Address of the display
-#define ADC_PIN A10         // e.g., A15 is connected to GPIO 12
+// #define ADC_PIN A10         // e.g., A15 is connected to GPIO 12
 
 #define SIGNIFICANT_DIGITS 5 // Set significant digits output for serial port
 const unsigned long DT = 50; // Set PID update time in ms
@@ -33,7 +33,7 @@ int pwmTimeMin_us = 1000;
 int pwmTimeMax_us = 2000;
 
 Servo motor1;
-int motor1Pin = 22;
+int motor1Pin = 12;
 
 Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, DISPLAY_RESET);
 
@@ -43,8 +43,12 @@ bool parseSerialData(const char *input);
 float averageDepth(uint16_t n);
 float depthCall = 0;
 void motorArmingSequence(uint8_t time_s);
+void alterSP();
 
 PID pid(DT);
+
+bool alternateSP = false;
+float dSP = 0;
 
 MS5837 pSensor;
 
@@ -52,8 +56,6 @@ void setup()
 {
   Serial.begin(115200);
   Serial.println();
-
-  pinMode(ADC_PIN, INPUT);
 
   // Allow allocation of all timers
   ESP32PWM::allocateTimer(0);
@@ -86,6 +88,8 @@ void setup()
   depthCall = averageDepth(100);
   Serial.print("Cal Depth = ");
   Serial.println(depthCall);
+  delay(1000);
+  
   motorArmingSequence(5);
   Serial.println("Motor armed");
 }
@@ -119,16 +123,16 @@ void loop()
   Serial.print(", LPF: ");
   Serial.println(pid.getLpfGain(), SIGNIFICANT_DIGITS);
 
-  uint16_t sensorValue = analogRead(ADC_PIN);
-  // uint16_t pwmTimeHigh_us = map(sensorValue, 0, 4095, pwmTimeMin_us, pwmTimeMax_us);
   uint16_t pwmTimeHigh_us = map((long)(pidValue * 1000), -100000, 100000, pwmTimeMin_us, pwmTimeMax_us);
   motor1.writeMicroseconds(pwmTimeHigh_us);
-  // oled.clearDisplay();
-  // oled.setCursor(0, 20);
-  // oled.print(pwmTimeHigh_us);
-  // oled.display();
 
-  // delay(75);
+  oled.clearDisplay();
+  oled.setCursor(0, 20);
+  oled.print(pid.getSp(),3);
+  oled.display();
+
+  alterSP();
+
   pid.paceLoop();
 }
 
@@ -184,6 +188,18 @@ bool parseSerialData(const char *input)
     pid.setLpfGain(value);
     return true;
   }
+  if (strcmp(key, "ALT") == 0)
+  {
+    // Serial.println("In ALT");
+    alternateSP = (bool)value;
+    return true;
+  }
+    if (strcmp(key, "dSP") == 0)
+  {
+    // Serial.println("In ALT");
+    dSP = value;
+    return true;
+  }
 
   return false;
 }
@@ -206,6 +222,11 @@ void motorArmingSequence(uint8_t time_s)
   }
 }
 
+/**
+ * @brief Calculates and displays the average depth from n sensor readings.
+ * 
+ * Used for calibrating the zero-depth reference during the initialization process.
+ */
 float averageDepth(uint16_t n)
 {
   oled.setTextSize(2);
@@ -223,10 +244,44 @@ float averageDepth(uint16_t n)
     oled.print(i);
     oled.display();
   }
+  value = value/n;
+
   oled.clearDisplay();
   oled.setCursor(0, 10);
   oled.println("Cal Depth = ");
-  oled.print(value / n);
+  oled.print(value);
   oled.display();
-  return value / n;
+  return value;
+}
+
+
+/**
+ * @brief Alternates the PID setpoint periodically for demonstration or testing.
+ *
+ * This function toggles the target setpoint every 10 seconds by adding or subtracting
+ * a predefined delta (`dSP`) from the current setpoint. The direction alternates each cycle.
+ *
+ * When the global flag `alternateSP` is enabled, the function:
+ * - Increases or decreases the setpoint (`SP`) by `dSP`.
+ * - Reverses direction after each interval.
+ * - Updates every 10,000 ms (10 seconds) using a non-blocking timing approach.
+ *
+ * @note Useful for observing system response or tuning the PID controller.
+ */
+void alterSP()
+{
+  static unsigned long previousTime = 0;
+  static int sign = 1;
+  long delayTime = millis() - previousTime;
+  if (delayTime >= 10000)
+  {
+    if(alternateSP)
+    {
+    pid.setTarget(pid.getSp() + sign * dSP);
+
+    sign = -sign;
+    }
+    previousTime = millis();
+    
+  }
 }
