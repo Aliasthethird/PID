@@ -13,7 +13,7 @@
  *
  * @return true if a full line ending with '\n' was received, false otherwise.
  */
-  [[nodiscard]] bool SerialLineReader::read()
+  [[nodiscard]] bool SerialLineReader::newLineAvailable()
   {
   static uint8_t idx = 0;
 

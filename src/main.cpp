@@ -89,14 +89,14 @@ void setup()
   Serial.print("Cal Depth = ");
   Serial.println(depthCall);
   delay(1000);
-  
+
   motorArmingSequence(5);
   Serial.println("Motor armed");
 }
 
 void loop()
 {
-  if (serialLineReader.read())
+  if (serialLineReader.newLineAvailable())
   {
     parseSerialData(serialLineReader.getLine());
   }
