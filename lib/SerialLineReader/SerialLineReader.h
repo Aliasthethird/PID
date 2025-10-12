@@ -18,7 +18,7 @@ public:
    * It accumulates incoming serial characters into an internal buffer.
    * When a newline character ('\\n') is received, it null-terminates the string
    * and returns `true` to indicate a complete line has been read.
-   * 
+   *
    * Once `true` is returned, call `getLine()` to access the received line.
    *
    * @return true if a full line ending with '\n' was received, false otherwise.
@@ -34,3 +34,16 @@ private:
   static constexpr size_t kBufferSize_ = 128;
   char input_[kBufferSize_] = {'\0'};
 };
+
+struct KeyVal
+{
+  const char *key;
+  float value;
+};
+
+/**
+ * @brief Parses a "KEY:VALUE" serial string into a key–value pair.
+ * @param input C-string from serial input (e.g. "KP:1.2").
+ * @return Pair of key (const char*) and value (float); {"", NAN} if invalid.
+ */
+KeyVal parseSerialData(const char *input);

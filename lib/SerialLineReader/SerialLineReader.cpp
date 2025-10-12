@@ -41,3 +41,28 @@ const char* SerialLineReader::getLine() const
     return input_;
   }
 
+
+KeyVal parseSerialData(const char *input)
+{
+  static char key[8]; // persistent buffer (so we can return pointer)
+  const char *sep = strchr(input, ':');
+  if (sep == nullptr)
+  {
+    Serial.println("Unable to parse string, no \":\" in string");
+    key[0] = '\0';
+    return {"", NAN};
+  }
+
+  size_t keyLen = sep - input;
+
+  if (keyLen >= sizeof(key))
+    keyLen = sizeof(key) - 1;
+
+  strncpy(key, input, keyLen);
+  key[keyLen] = '\0';
+
+  const char *valueStart = sep + 1; // jump to number
+  float value = atof(valueStart);
+
+  return {key, value};
+}

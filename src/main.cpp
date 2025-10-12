@@ -1,14 +1,16 @@
 // Project Name: PID
 // Description: Sets depth of propeller based on a MS5837 pressure sensor
 // Board/Target: Lolin lite
-// Author: Gero Nootz 
-// Date: 10-10-2025
-// Version: 1.1.0
-
+// Author: Gero Nootz
+// Date: 10-11-2025
+// Version: 1.1.1
 
 #include <Arduino.h>
-#include <stdlib.h>
-#include <string.h>
+
+#include <cstring> // strchr, strncpy
+#include <cstdlib> // atof
+#include <utility> // std::pair
+
 #include <Wire.h>
 #include <MS5837.h>
 #include <Adafruit_GFX.h>
@@ -39,16 +41,16 @@ Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, DISPLAY_RESET);
 
 SerialLineReader serialLineReader;
 
-bool parseSerialData(const char *input);
 float averageDepth(uint16_t n);
 float depthCall = 0;
 void motorArmingSequence(uint8_t time_s);
-void alterSP();
+void alterSP(uint16_t period_ms);
 
 PID pid(DT);
 
-bool alternateSP = false;
 float dSP = 0;
+bool alternateSP = false;
+bool useSerialkeyValuePair(const KeyVal &kv);
 
 MS5837 pSensor;
 
@@ -98,7 +100,8 @@ void loop()
 {
   if (serialLineReader.newLineAvailable())
   {
-    parseSerialData(serialLineReader.getLine());
+    auto keyValuePair = parseSerialData(serialLineReader.getLine());
+    useSerialkeyValuePair(keyValuePair);
   }
 
   pSensor.read();
@@ -128,76 +131,63 @@ void loop()
 
   oled.clearDisplay();
   oled.setCursor(0, 20);
-  oled.print(pid.getSp(),3);
+  oled.print(pid.getSp(), 3);
   oled.display();
 
-  alterSP();
+  alterSP(10000);
 
   pid.paceLoop();
 }
 
-bool parseSerialData(const char *input)
+
+/**
+ * @brief Applies a parsed key–value pair to update PID parameters.
+ * @param kv Pair containing key (first) and value (second).
+ * @return true if key was recognized and applied, false otherwise.
+ */
+bool useSerialkeyValuePair(const KeyVal &kv)
 {
-  const char *sep = strchr(input, ':');
-  if (sep == NULL)
-  {
-    Serial.println("Unable to parse string, no \":\" in string");
-    return false;
-  }
-  size_t keyLen = sep - input;
 
-  // Serial.print("key length: ");
-  // Serial.println((int)keyLen);
-  char key[keyLen + 1];
-  strncpy(key, input, keyLen);
-  key[keyLen] = '\0';
-  // Serial.print("Key: ");
-  // Serial.println(key);
-  const char *valueStart = sep + 1; // jump to number
-  float value = atof(valueStart);
-  // Serial.print("Value: ");
-  // Serial.println(value);
-
-  if (strcmp(key, "KP") == 0)
+  if (strcmp(kv.key, "KP") == 0)
   {
     // Serial.println("In KP");
-    pid.setKp(value);
+    pid.setKp(kv.value);
     return true;
   }
-  if (strcmp(key, "KI") == 0)
+  if (strcmp(kv.key, "KI") == 0)
   {
     // Serial.println("In KI");
-    pid.setKi(value);
+    pid.setKi(kv.value);
     return true;
   }
-  if (strcmp(key, "KD") == 0)
+  if (strcmp(kv.key, "KD") == 0)
   {
     // Serial.println("In KD");
-    pid.setKd(value);
+    pid.setKd(kv.value);
     return true;
   }
-  if (strcmp(key, "SP") == 0)
+  if (strcmp(kv.key, "SP") == 0)
   {
     // Serial.println("In SP");
-    pid.setTarget(value);
+    pid.setTarget(kv.value);
     return true;
   }
-  if (strcmp(key, "LPF") == 0)
+  if (strcmp(kv.key, "LPF") == 0)
   {
     // Serial.println("In SP");
-    pid.setLpfGain(value);
+    pid.setLpfGain(kv.value);
     return true;
   }
-  if (strcmp(key, "ALT") == 0)
+  if (strcmp(kv.key, "ALT") == 0)
   {
     // Serial.println("In ALT");
-    alternateSP = (bool)value;
+    alternateSP = (bool)kv.value;
     return true;
   }
-    if (strcmp(key, "dSP") == 0)
+  if (strcmp(kv.key, "dSP") == 0)
   {
     // Serial.println("In ALT");
-    dSP = value;
+    dSP = kv.value;
     return true;
   }
 
@@ -224,7 +214,7 @@ void motorArmingSequence(uint8_t time_s)
 
 /**
  * @brief Calculates and displays the average depth from n sensor readings.
- * 
+ *
  * Used for calibrating the zero-depth reference during the initialization process.
  */
 float averageDepth(uint16_t n)
@@ -244,7 +234,7 @@ float averageDepth(uint16_t n)
     oled.print(i);
     oled.display();
   }
-  value = value/n;
+  value = value / n;
 
   oled.clearDisplay();
   oled.setCursor(0, 10);
@@ -254,34 +244,32 @@ float averageDepth(uint16_t n)
   return value;
 }
 
-
 /**
  * @brief Alternates the PID setpoint periodically for demonstration or testing.
  *
- * This function toggles the target setpoint every 10 seconds by adding or subtracting
+ * This function toggles the target setpoint every "period" ms by adding or subtracting
  * a predefined delta (`dSP`) from the current setpoint. The direction alternates each cycle.
  *
  * When the global flag `alternateSP` is enabled, the function:
  * - Increases or decreases the setpoint (`SP`) by `dSP`.
  * - Reverses direction after each interval.
- * - Updates every 10,000 ms (10 seconds) using a non-blocking timing approach.
+ * - Updates every "period" ms using a non-blocking timing approach.
  *
  * @note Useful for observing system response or tuning the PID controller.
  */
-void alterSP()
+void alterSP(uint16_t period_md)
 {
   static unsigned long previousTime = 0;
   static int sign = 1;
   long delayTime = millis() - previousTime;
-  if (delayTime >= 10000)
+  if (delayTime >= period_md)
   {
-    if(alternateSP)
+    if (alternateSP)
     {
-    pid.setTarget(pid.getSp() + sign * dSP);
+      pid.setTarget(pid.getSp() + sign * dSP);
 
-    sign = -sign;
+      sign = -sign;
     }
     previousTime = millis();
-    
   }
 }
