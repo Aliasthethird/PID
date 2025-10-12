@@ -2,8 +2,8 @@
 
 **Author:** Gero Nootz
 **Board:** Lolin Lite (ESP32)
-**Version:** 1.1.0
-**Date:** October 10, 2025
+**Version:** 1.1.1
+**Date:** October 12, 2025
 
 ---
 
@@ -12,7 +12,7 @@
 This PlatformIO project controls the **depth of a propeller-driven system** using a **PID controller** and an **MS5837 pressure sensor**.
 The PID output drives a servo (ESC) to maintain or oscillate around a target depth, displayed on a **SSD1306 OLED**.
 
-The PID implementation resides in `lib/PID/`.
+The PID implementation resides in `lib/PID/`, and **generic serial functionality** has been modularized into the new `lib/SerialLineReader/` library (introduced in v1.1.1).
 
 ---
 
@@ -52,6 +52,11 @@ The PID implementation resides in `lib/PID/`.
 * ESC arming countdown
 * **Alternating setpoint option** for automatic step-response testing — ideal for **demonstration and tuning purposes**
 * Serial output for live PID diagnostics
+* **New in v1.1.1:**
+
+  * Refactored serial read logic for cleaner structure
+  * Introduced **SerialLineReader** library to handle generic serial input
+  * Minor refactoring across modules for clarity and consistency
 
 ---
 
@@ -70,10 +75,10 @@ PID-Depth-Control/
 ├── src/
 │   └── main.cpp
 ├── lib/
-│   └── PID/
-│   |   ├── PID.cpp
-│   |   └── PID.h
-|   └── SerialLineRea/
+│   ├── PID/
+│   │   ├── PID.cpp
+│   │   └── PID.h
+│   └── SerialLineReader/
 │       ├── SerialLineReader.cpp
 │       └── SerialLineReader.h
 ├── platformio.ini
@@ -86,7 +91,6 @@ PID-Depth-Control/
 
 | Version   | Date       | Changes                                                                                                                                                            |
 | --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **1.1.1** | 2025-10-12 | Refactored serial read logic; introduced `SerialLineReader` library for generic serial handling; performed minor refactoring for clarity and consistency.          |
 | **1.1.0** | 2025-10-10 | Added alternating setpoint feature (`ALT`, `dSP`) for demonstration purposes; removed ADC input; changed motor pin to GPIO 12; OLED now displays current setpoint. |
 | **1.0.0** | 2025-07-30 | Initial release — PID depth control with MS5837 sensor, OLED feedback, and motor arming sequence.                                                                  |
-
----
