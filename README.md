@@ -35,17 +35,14 @@ The PID logic is implemented in `lib/PID/`, and **serial input handling** is enc
 
 | Command | Example    | Description                                            |
 | ------- | ---------- | ------------------------------------------------------ |
-| `KP`    | `KP:0.5`   | Set proportional gain                                  |
-| `KI`    | `KI:0.02`  | Set integral gain                                      |
-| `KD`    | `KD:0.1`   | Set derivative gain                                    |
-| `SP`    | `SP:0.3`   | Set target depth (m)                                   |
-| `LPF`   | `LPF:0.9`  | Set low-pass filter gain                               |
-| `FGM`   | `FGM:1`    | Set function generator mode                            |
-|         |            | 0: DC, 1: Sine, 2: Rectangle, 3: Sawtooth, 4: Triangle |
-| `AMP`   | `AMP:0.01` | Set function generator amplitude                       |
-| `T`     | `T:10000`  | Set function generator period (ms)                     |
-
----
+| `KP`    | `KP:0.5`   | Set proportional gain                                 |
+| `KI`    | `KI:0.02`  | Set integral gain                                     |
+| `KD`    | `KD:0.1`   | Set derivative gain                                   |
+| `SP`    | `SP:0.3`   | Set target depth (m)                                  |
+| `LPF`   | `LPF:0.9`  | Set low-pass filter gain                              |
+| `FGM`   | `FGM:1`    | Set function generator mode<br><em>Modes:</em> 0=DC, 1=Sine, 2=Rectangle, 3=Sawtooth, 4=Triangle |
+| `AMP`   | `AMP:0.01` | Set function generator amplitude                      |
+| `T`     | `T:10000`  | Set function generator period (ms)                    |
 
 ## Features
 
