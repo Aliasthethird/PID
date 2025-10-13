@@ -13,15 +13,9 @@ public:
     i_ = constrain(i_ + (ki_ * error * dt_), -100, 100);
     d_ = kd_ * (FilteredMeasurement - previousFilteredMeasurement_) / dt_;
 
-    // Serial.print("measurement: ");
-    // Serial.println(measurement, 4);
-    // Serial.print("previousMeasurement: ");
-    // Serial.println(previousMeasurement_, 4);
-
     previousMeasurement_ = measurement;
     previousFilteredMeasurement_ = FilteredMeasurement;
     return constrain(p_ + i_ + d_, -100, 100);
-
   }
 
   void setKd(float kd)
@@ -44,6 +38,11 @@ public:
     setpoint_ = setpoint;
   }
 
+  /**
+   * @brief Sets the low-pass filter gain for derivative smoothing.
+   *
+   * A gain of 1.0 applies the full derivative, while 0.0 disables it.
+   */
   void setLpfGain(float lpfGain)
   {
     lpfGain_ = constrain(lpfGain, 0, 1);
@@ -82,12 +81,13 @@ public:
     static unsigned long previousTime = 0;
     long delayTime = dt_ - (millis() - previousTime);
     if (delayTime < 0)
+    {
       Serial.println("WARNING, Loop can not execute at set rate");
+      Serial.print("delayTime = ");
+      Serial.println(delayTime);
+    }
     else
     {
-      // Serial.print("Loop delayed by ");
-      // Serial.print(delayTime);
-      // Serial.println(" ms");
       delay(delayTime);
     }
     previousTime = millis();

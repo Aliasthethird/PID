@@ -2,26 +2,26 @@
 
 **Author:** Gero Nootz
 **Board:** Lolin Lite (ESP32)
-**Version:** 1.1.1
-**Date:** October 12, 2025
+**Version:** 1.2.0
+**Date:** October 13, 2025
 
 ---
 
 ## Overview
 
 This PlatformIO project controls the **depth of a propeller-driven system** using a **PID controller** and an **MS5837 pressure sensor**.
-The PID output drives a servo (ESC) to maintain or oscillate around a target depth, displayed on a **SSD1306 OLED**.
+The PID output drives a servo (ESC) to maintain or oscillate around a target depth, displayed on an **SSD1306 OLED**.
 
-The PID implementation resides in `lib/PID/`, and **generic serial functionality** has been modularized into the new `lib/SerialLineReader/` library (introduced in v1.1.1).
+The PID logic is implemented in `lib/PID/`, and **serial input handling** is encapsulated in the modular `lib/SerialLineReader/` library (introduced in v1.1.1).
 
 ---
 
 ## Requirements
 
-* **PlatformIO / Arduino framework**
-* **ESP32Servo library version 3.0.6**
-  (Newer versions require the latest Arduino core and code rewrite.)
-* **Libraries:**
+* **PlatformIO** with the **Arduino framework**
+* **ESP32Servo library v3.0.6**
+  (Note: newer versions require the latest Arduino core and may need code adjustments.)
+* **Additional libraries:**
 
   * `Adafruit_GFX`
   * `Adafruit_SSD1306`
@@ -33,38 +33,32 @@ The PID implementation resides in `lib/PID/`, and **generic serial functionality
 
 ## Serial Commands
 
-| Command | Example   | Description                                    |
-| ------- | --------- | ---------------------------------------------- |
-| `KP:x`  | `KP:0.5`  | Set proportional gain                          |
-| `KI:x`  | `KI:0.02` | Set integral gain                              |
-| `KD:x`  | `KD:0.1`  | Set derivative gain                            |
-| `SP:x`  | `SP:0.3`  | Set target depth (m)                           |
-| `LPF:x` | `LPF:0.9` | Set low-pass filter gain                       |
-| `ALT:x` | `ALT:1`   | Enable/disable alternating setpoint mode       |
-| `dSP:x` | `dSP:0.1` | Set the step size (m) for alternating setpoint |
+| Command | Example    | Description                                            |
+| ------- | ---------- | ------------------------------------------------------ |
+| `KP`    | `KP:0.5`   | Set proportional gain                                  |
+| `KI`    | `KI:0.02`  | Set integral gain                                      |
+| `KD`    | `KD:0.1`   | Set derivative gain                                    |
+| `SP`    | `SP:0.3`   | Set target depth (m)                                   |
+| `LPF`   | `LPF:0.9`  | Set low-pass filter gain                               |
+| `FGM`   | `FGM:1`    | Set function generator mode                            |
+|         |            | 0: DC, 1: Sine, 2: Rectangle, 3: Sawtooth, 4: Triangle |
+| `AMP`   | `AMP:0.01` | Set function generator amplitude                       |
+| `T`     | `T:10000`  | Set function generator period (ms)                     |
 
 ---
 
 ## Features
 
 * Zero-depth calibration on startup
-* OLED display for calibration, arming, and live setpoint display
+* OLED display for calibration, arming, and live setpoint visualization
 * ESC arming countdown
-* **Alternating setpoint option** for automatic step-response testing — ideal for **demonstration and tuning purposes**
-* Serial output for live PID diagnostics
-* **New in v1.1.1:**
+* **Alternating setpoint option** for step-response testing — ideal for **PID tuning and demonstration**
+* Serial output for real-time PID diagnostics
+* **New in v1.2.0:**
 
-  * Refactored serial read logic for cleaner structure
-  * Introduced **SerialLineReader** library to handle generic serial input
-  * Minor refactoring across modules for clarity and consistency
-
----
-
-## Notes
-
-* `motor1Pin` changed from GPIO **22 → 12**
-* ADC input removed (no longer used)
-* New `alterSP()` routine alternates the setpoint every 10 seconds when `ALT` is enabled
+  * Added **Function Generator**, allowing automatic target depth variation with configurable amplitude, period, and waveform type
+  * Improved serial parsing reliability and feedback messages
+  * General code cleanup and documentation updates
 
 ---
 
@@ -91,6 +85,7 @@ PID-Depth-Control/
 
 | Version   | Date       | Changes                                                                                                                                                            |
 | --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **1.2.0** | 2025-10-13 | Added Function Generator for variable target depth; enhanced serial command handling and feedback; refined code comments and documentation for better clarity.     |
 | **1.1.1** | 2025-10-12 | Refactored serial read logic; introduced `SerialLineReader` library for generic serial handling; performed minor refactoring for clarity and consistency.          |
 | **1.1.0** | 2025-10-10 | Added alternating setpoint feature (`ALT`, `dSP`) for demonstration purposes; removed ADC input; changed motor pin to GPIO 12; OLED now displays current setpoint. |
 | **1.0.0** | 2025-07-30 | Initial release — PID depth control with MS5837 sensor, OLED feedback, and motor arming sequence.                                                                  |

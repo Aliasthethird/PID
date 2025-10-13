@@ -2,14 +2,17 @@
 // Description: Sets depth of propeller based on a MS5837 pressure sensor
 // Board/Target: Lolin lite
 // Author: Gero Nootz
-// Date: 10-11-2025
-// Version: 1.1.1
+// Date: 10-12-2025
+// Version: 1.2.0
 
 #include <Arduino.h>
 
 #include <cstring> // strchr, strncpy
 #include <cstdlib> // atof
 #include <utility> // std::pair
+
+#include <cmath> // sinf
+// #include <algorithm> // clamp
 
 #include <Wire.h>
 #include <MS5837.h>
@@ -24,7 +27,6 @@
 #define SCREEN_HEIGHT 64    // display height, in pixels
 #define DISPLAY_RESET -1    // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_ADDRESS 0x3C // See data sheet for Address of the display
-// #define ADC_PIN A10         // e.g., A15 is connected to GPIO 12
 
 #define SIGNIFICANT_DIGITS 5 // Set significant digits output for serial port
 const unsigned long DT = 50; // Set PID update time in ms
@@ -33,9 +35,8 @@ const unsigned long DT = 50; // Set PID update time in ms
 uint16_t pwmPeriod_Hertz = 400;
 int pwmTimeMin_us = 1000;
 int pwmTimeMax_us = 2000;
-
-Servo motor1;
 int motor1Pin = 12;
+Servo motor1;
 
 Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, DISPLAY_RESET);
 
@@ -43,16 +44,31 @@ SerialLineReader serialLineReader;
 
 float averageDepth(uint16_t n);
 float depthCall = 0;
+float setPoint = 0;
+float amplitude = 0;
+uint16_t period_ms = 10000;
 void motorArmingSequence(uint8_t time_s);
-void alterSP(uint16_t period_ms);
 
 PID pid(DT);
+MS5837 pSensor;
 
+enum class Wave
+{
+  DC,
+  Sine,
+  Square,
+  Saw,
+  Triangle,
+  Count  // always keep this last (used to restrict values)
+};
+
+Wave fgMode = Wave::DC;
+
+float functionGenerator(float dcOffset, float amplitude, uint16_t period_ms, Wave mode);
 float dSP = 0;
 bool alternateSP = false;
-bool useSerialkeyValuePair(const KeyVal &kv);
 
-MS5837 pSensor;
+bool useSerialkeyValuePair(const KeyVal &kv);
 
 void setup()
 {
@@ -104,6 +120,9 @@ void loop()
     useSerialkeyValuePair(keyValuePair);
   }
 
+  float target = functionGenerator(setPoint, amplitude, period_ms, fgMode);
+  pid.setTarget(target);
+
   pSensor.read();
   float depth = pSensor.depth() - depthCall;
   float pidValue = pid.update(depth);
@@ -129,16 +148,13 @@ void loop()
   uint16_t pwmTimeHigh_us = map((long)(pidValue * 1000), -100000, 100000, pwmTimeMin_us, pwmTimeMax_us);
   motor1.writeMicroseconds(pwmTimeHigh_us);
 
-  oled.clearDisplay();
-  oled.setCursor(0, 20);
-  oled.print(pid.getSp(), 3);
-  oled.display();
-
-  alterSP(10000);
+  // oled.clearDisplay();
+  // oled.setCursor(0, 20);
+  // oled.print(pid.getSp(), 3);
+  // oled.display();
 
   pid.paceLoop();
 }
-
 
 /**
  * @brief Applies a parsed key–value pair to update PID parameters.
@@ -150,44 +166,46 @@ bool useSerialkeyValuePair(const KeyVal &kv)
 
   if (strcmp(kv.key, "KP") == 0)
   {
-    // Serial.println("In KP");
     pid.setKp(kv.value);
     return true;
   }
   if (strcmp(kv.key, "KI") == 0)
   {
-    // Serial.println("In KI");
     pid.setKi(kv.value);
     return true;
   }
   if (strcmp(kv.key, "KD") == 0)
   {
-    // Serial.println("In KD");
     pid.setKd(kv.value);
     return true;
   }
   if (strcmp(kv.key, "SP") == 0)
   {
-    // Serial.println("In SP");
-    pid.setTarget(kv.value);
+    setPoint = kv.value;
+    // pid.setTarget(kv.value);
     return true;
   }
   if (strcmp(kv.key, "LPF") == 0)
   {
-    // Serial.println("In SP");
     pid.setLpfGain(kv.value);
     return true;
   }
-  if (strcmp(kv.key, "ALT") == 0)
+  if (strcmp(kv.key, "FGM") == 0)
   {
-    // Serial.println("In ALT");
-    alternateSP = (bool)kv.value;
+    int maxIdx = static_cast<int>(Wave::Count) - 1;
+    // int v = clamp(static_cast<int>(std::lround(kv.value)), 0, maxIdx);
+    int v = static_cast<int>(std::lround(kv.value));
+    fgMode = static_cast<Wave>(v);
     return true;
   }
-  if (strcmp(kv.key, "dSP") == 0)
+  if (strcmp(kv.key, "AMP") == 0)
   {
-    // Serial.println("In ALT");
-    dSP = kv.value;
+    amplitude = kv.value;
+    return true;
+  }
+  if (strcmp(kv.key, "T") == 0)
+  {
+    period_ms = kv.value;
     return true;
   }
 
@@ -257,19 +275,32 @@ float averageDepth(uint16_t n)
  *
  * @note Useful for observing system response or tuning the PID controller.
  */
-void alterSP(uint16_t period_md)
+float functionGenerator(float dcOffset, float amplitude, uint16_t period_ms, Wave mode)
 {
-  static unsigned long previousTime = 0;
-  static int sign = 1;
-  long delayTime = millis() - previousTime;
-  if (delayTime >= period_md)
-  {
-    if (alternateSP)
-    {
-      pid.setTarget(pid.getSp() + sign * dSP);
+  // Guard against divide-by-zero (T = 0)
+  if (period_ms == 0)
+    return dcOffset;
 
-      sign = -sign;
-    }
-    previousTime = millis();
+  float phase = (millis() % period_ms) / (float)period_ms;
+  float y = 0.0f;
+  
+  switch (mode)
+  {
+  case Wave::Sine:
+    y = sinf(2 * M_PI * phase);
+    break;
+
+  case Wave::Square:
+    y = (phase < 0.5f) ? 1.0f : -1.0f;
+    break;
+
+  case Wave::Saw:
+    y = 2.0f * phase - 1.0f;
+    break;
+
+  case Wave::Triangle:
+    y = 4.0f * fabsf(phase - 0.5f) - 1.0f;
+    break;
   }
+  return amplitude * y + dcOffset;
 }
