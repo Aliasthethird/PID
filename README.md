@@ -82,7 +82,8 @@ PID-Depth-Control/
 
 | Version   | Date       | Changes                                                                                                                                                            |
 | --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **1.3.0** | 2025-10-18 | Use FunctionGenerator lib.     |
 | **1.2.0** | 2025-10-13 | Added Function Generator for variable target depth; enhanced serial command handling and feedback; refined code comments and documentation for better clarity.     |
 | **1.1.1** | 2025-10-12 | Refactored serial read logic; introduced `SerialLineReader` library for generic serial handling; performed minor refactoring for clarity and consistency.          |
-| **1.1.0** | 2025-10-10 | Added alternating setpoint feature (`ALT`, `dSP`) for demonstration purposes; removed ADC input; changed motor pin to GPIO 12; OLED now displays current setpoint. |
+| **1.1.0** | 2025-10-10 | Added alternating set point feature (`ALT`, `dSP`) for demonstration purposes; removed ADC input; changed motor pin to GPIO 12; OLED now displays current set point. |
 | **1.0.0** | 2025-07-30 | Initial release — PID depth control with MS5837 sensor, OLED feedback, and motor arming sequence.                                                                  |

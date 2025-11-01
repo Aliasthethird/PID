@@ -12,13 +12,14 @@
 #include <utility> // std::pair
 
 #include <cmath> // sinf
-// #include <algorithm> // clamp
 
 #include <Wire.h>
 #include <MS5837.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <ESP32Servo.h>
+
+#include <FunctionGenerator.h>
 
 #include "SerialLineReader.h"
 #include "PID.h"
@@ -39,41 +40,24 @@ int motor1Pin = 12;
 Servo motor1;
 
 Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, DISPLAY_RESET);
+MS5837 pSensor;
 
 SerialLineReader serialLineReader;
 
 float averageDepth(uint16_t n);
 float depthCall = 0;
-float setPoint = 0;
-float amplitude = 0;
-uint16_t period_ms = 10000;
+
 void motorArmingSequence(uint8_t time_s);
 
+FunctionGenerator fg(DT);
 PID pid(DT);
-MS5837 pSensor;
-
-enum class Wave
-{
-  DC,
-  Sine,
-  Square,
-  Saw,
-  Triangle,
-  Count  // always keep this last (used to restrict values)
-};
-
-Wave fgMode = Wave::DC;
-
-float functionGenerator(float dcOffset, float amplitude, uint16_t period_ms, Wave mode);
-float dSP = 0;
-bool alternateSP = false;
 
 bool useSerialkeyValuePair(const KeyVal &kv);
 
 void setup()
 {
   Serial.begin(115200);
-  Serial.println();
+  Wire.begin(SDA, SCL);
 
   // Allow allocation of all timers
   ESP32PWM::allocateTimer(0);
@@ -84,8 +68,7 @@ void setup()
   motor1.setPeriodHertz(pwmPeriod_Hertz);
   motor1.attach(motor1Pin, pwmTimeMin_us, pwmTimeMax_us);
 
-  Wire.begin(SDA, SCL);
-
+  Serial.println();
   // Initialize the OLED display
   if (!oled.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
   {
@@ -120,12 +103,15 @@ void loop()
     useSerialkeyValuePair(keyValuePair);
   }
 
-  float target = functionGenerator(setPoint, amplitude, period_ms, fgMode);
+  float target = fg.getValue();
   pid.setTarget(target);
 
   pSensor.read();
   float depth = pSensor.depth() - depthCall;
   float pidValue = pid.update(depth);
+
+  uint16_t pwmTimeHigh_us = map((long)(pidValue * 1000), -100000, 100000, pwmTimeMin_us, pwmTimeMax_us);
+  motor1.writeMicroseconds(pwmTimeHigh_us);
 
   Serial.print("depth: ");
   if (depth >= 0)
@@ -133,7 +119,6 @@ void loop()
   Serial.print(depth, SIGNIFICANT_DIGITS);
   Serial.print(", PID: ");
   Serial.print(pidValue, SIGNIFICANT_DIGITS);
-
   Serial.print(", kp: ");
   Serial.print(pid.getKp(), SIGNIFICANT_DIGITS);
   Serial.print(", ki: ");
@@ -144,9 +129,6 @@ void loop()
   Serial.print(pid.getSp(), SIGNIFICANT_DIGITS);
   Serial.print(", LPF: ");
   Serial.println(pid.getLpfGain(), SIGNIFICANT_DIGITS);
-
-  uint16_t pwmTimeHigh_us = map((long)(pidValue * 1000), -100000, 100000, pwmTimeMin_us, pwmTimeMax_us);
-  motor1.writeMicroseconds(pwmTimeHigh_us);
 
   // oled.clearDisplay();
   // oled.setCursor(0, 20);
@@ -163,7 +145,6 @@ void loop()
  */
 bool useSerialkeyValuePair(const KeyVal &kv)
 {
-
   if (strcmp(kv.key, "KP") == 0)
   {
     pid.setKp(kv.value);
@@ -179,36 +160,31 @@ bool useSerialkeyValuePair(const KeyVal &kv)
     pid.setKd(kv.value);
     return true;
   }
-  if (strcmp(kv.key, "SP") == 0)
-  {
-    setPoint = kv.value;
-    // pid.setTarget(kv.value);
-    return true;
-  }
-  if (strcmp(kv.key, "LPF") == 0)
+    if (strcmp(kv.key, "LPF") == 0)
   {
     pid.setLpfGain(kv.value);
     return true;
   }
-  if (strcmp(kv.key, "FGM") == 0)
+  if (strcmp(kv.key, "SP") == 0)
   {
-    int maxIdx = static_cast<int>(Wave::Count) - 1;
-    // int v = clamp(static_cast<int>(std::lround(kv.value)), 0, maxIdx);
-    int v = static_cast<int>(std::lround(kv.value));
-    fgMode = static_cast<Wave>(v);
+    fg.setDcOffset(kv.value);
+    return true;
+  }
+  if (strcmp(kv.key, "FGM") == 0)
+  {    
+    fg.setModeFromIndex(kv.value);
     return true;
   }
   if (strcmp(kv.key, "AMP") == 0)
   {
-    amplitude = kv.value;
+    fg.setAmplitude(kv.value);
     return true;
   }
   if (strcmp(kv.key, "T") == 0)
   {
-    period_ms = kv.value;
+    fg.setPeriod(kv.value);
     return true;
   }
-
   return false;
 }
 
@@ -260,47 +236,4 @@ float averageDepth(uint16_t n)
   oled.print(value);
   oled.display();
   return value;
-}
-
-/**
- * @brief Alternates the PID setpoint periodically for demonstration or testing.
- *
- * This function toggles the target setpoint every "period" ms by adding or subtracting
- * a predefined delta (`dSP`) from the current setpoint. The direction alternates each cycle.
- *
- * When the global flag `alternateSP` is enabled, the function:
- * - Increases or decreases the setpoint (`SP`) by `dSP`.
- * - Reverses direction after each interval.
- * - Updates every "period" ms using a non-blocking timing approach.
- *
- * @note Useful for observing system response or tuning the PID controller.
- */
-float functionGenerator(float dcOffset, float amplitude, uint16_t period_ms, Wave mode)
-{
-  // Guard against divide-by-zero (T = 0)
-  if (period_ms == 0)
-    return dcOffset;
-
-  float phase = (millis() % period_ms) / (float)period_ms;
-  float y = 0.0f;
-  
-  switch (mode)
-  {
-  case Wave::Sine:
-    y = sinf(2 * M_PI * phase);
-    break;
-
-  case Wave::Square:
-    y = (phase < 0.5f) ? 1.0f : -1.0f;
-    break;
-
-  case Wave::Saw:
-    y = 2.0f * phase - 1.0f;
-    break;
-
-  case Wave::Triangle:
-    y = 4.0f * fabsf(phase - 0.5f) - 1.0f;
-    break;
-  }
-  return amplitude * y + dcOffset;
 }
