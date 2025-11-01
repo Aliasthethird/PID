@@ -2,8 +2,8 @@
 // Description: Sets depth of propeller based on a MS5837 pressure sensor
 // Board/Target: Lolin lite
 // Author: Gero Nootz
-// Date: 10-12-2025
-// Version: 1.2.0
+// Date: 11-01-2025
+// Version: 1.3.0
 
 #include <Arduino.h>
 
