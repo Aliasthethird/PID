@@ -67,7 +67,6 @@ public:
 
 private:
   unsigned long dt_ms_ = 0;
-  unsigned long dt_sec_ = 0;
 
   // User-set gains (per-second units)
   float kp_ = 0.0f;
@@ -91,15 +90,11 @@ private:
 
    void recomputeCoeffs()
   {
-    // Convert ms -> sec once
-    dt_sec_ = (float)dt_ms_ * 0.001f;
+    // Convert ms -> sec
+    float dt_sec_ = (float)dt_ms_ * 0.001f;
 
-    // Guard against zero/very small dt
-    const float eps = 1e-6f;
-    float safe_dt = (dt_sec_ > eps) ? dt_sec_ : eps;
-
-    // Precomputed constants for efficient update()
-    ki_dt_     = ki_ * safe_dt;       // for integral: i += ki_dt_ * error
-    kd_invdt_  = kd_ / safe_dt;       // for derivative: d = kd_invdt_ * Δfiltered
+    // Precomputed constants for efficient PID update()
+    ki_dt_     = ki_ * dt_sec_;      
+    kd_invdt_  = kd_ / dt_sec_;   
   }
 };
